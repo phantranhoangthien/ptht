@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>15-Puzzle with IDA*</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 50px;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, 60px);
+      grid-template-rows: repeat(4, 60px);
+      gap: 5px;
+    }
+
+    .tile {
+      width: 60px;
+      height: 60px;
+      background-color: #4caf50;
+      color: white;
+      font-size: 24px;
+      font-weight: bold;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-radius: 5px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .tile.empty {
+      background-color: transparent;
+      cursor: default;
+    }
+
+    .controls button {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background-color: #4caf50;
+      color: white;
+    }
+
+    .controls button:hover {
+      background-color: #45a049;
+    }
+
+    .status {
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="status" id="status">Welcome to 15-Puzzle!</div>
+    <div class="board" id="board"></div>
+    <div class="controls">
+      <button id="shuffle">Shuffle</button>
+      <button id="solve">Solve with IDA*</button>
+    </div>
+  </div>
+
+  <script>
+    const boardElement = document.getElementById("board");
+    const statusElement = document.getElementById("status");
+    const shuffleButton = document.getElementById("shuffle");
+    const solveButton = document.getElementById("solve");
+
+    let board = Array.from({ length: 16 }, (_, i) => i); // Initial board state
+    const goal = Array.from({ length: 16 }, (_, i) => i); // Goal state
+    const directions = [
+      { dx: -1, dy: 0 }, // Up
+      { dx: 1, dy: 0 },  // Down
+      { dx: 0, dy: -1 }, // Left
+      { dx: 0, dy: 1 },  // Right
+    ];
+
+    function renderBoard() {
+      boardElement.innerHTML = ""; // Clear the board
+      board.forEach((tile, index) => {
+        const tileElement = document.createElement("div");
+        tileElement.classList.add("tile");
+        if (tile === 0) {
+          tileElement.classList.add("empty");
+        } else {
+          tileElement.textContent = tile;
+        }
+        boardElement.appendChild(tileElement);
+      });
+    }
+
+    function shuffleBoard() {
+      for (let i = board.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [board[i], board[j]] = [board[j], board[i]];
+      }
+      renderBoard();
+      statusElement.textContent = "Board shuffled!";
+    }
+
+    function manhattanDistance(state) {
+      let distance = 0;
+      for (let i = 0; i < state.length; i++) {
+        if (state[i] !== 0) {
+          const targetX = Math.floor((state[i] - 1) / 4);
+          const targetY = (state[i] - 1) % 4;
+          const currentX = Math.floor(i / 4);
+          const currentY = i % 4;
+          distance += Math.abs(targetX - currentX) + Math.abs(targetY - currentY);
+        }
+      }
+      return distance;
+    }
+
+    function getCoords(index) {
+      return { x: Math.floor(index / 4), y: index % 4 };
+    }
+
+    function solveIDAStar() {
+      const startState = [...board];
+      const threshold = manhattanDistance(startState);
+      let result = null;
+
+      function search(path, g, threshold) {
+        const currentState = path[path.length - 1];
+        const f = g + manhattanDistance(currentState);
+
+        if (f > threshold) return f;
+        if (currentState.toString() === goal.toString()) {
+          result = path;
+          return true;
+        }
+
+        let min = Infinity;
+        const emptyIndex = currentState.indexOf(0);
+        const { x, y } = getCoords(emptyIndex);
+
+        for (const { dx, dy } of directions) {
+          const nx = x + dx;
+          const ny = y + dy;
+
+          if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4) {
+            const newEmptyIndex = nx * 4 + ny;
+            const newState = [...currentState];
+
+            [newState[emptyIndex], newState[newEmptyIndex]] = [newState[newEmptyIndex], newState[emptyIndex]];
+
+            if (!path.some((state) => state.toString() === newState.toString())) {
+              path.push(newState);
+              const temp = search(path, g + 1, threshold);
+              if (temp === true) return true;
+              if (temp < min) min = temp;
+              path.pop();
+            }
+          }
+        }
+        return min;
+      }
+
+      let thresholdIncrement = threshold;
+      while (true) {
+        const temp = search([startState], 0, thresholdIncrement);
+        if (temp === true) break;
+        if (temp === Infinity) {
+          statusElement.textContent = "No solution found.";
+          return;
+        }
+        thresholdIncrement = temp;
+      }
+
+      statusElement.textContent = `Solved in ${result.length - 1} moves!`;
+      animateSolution(result);
+    }
+
+    function animateSolution(solution) {
+      let i = 0;
+      const interval = setInterval(() => {
+        board = solution[i];
+        renderBoard();
+        i++;
+        if (i >= solution.length) clearInterval(interval);
+      }, 300);
+    }
+
+    shuffleButton.addEventListener("click", shuffleBoard);
+    solveButton.addEventListener("click", solveIDAStar);
+
+    renderBoard();
+  </script>
+</body>
+</html>
